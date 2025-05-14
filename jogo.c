@@ -126,7 +126,7 @@ int main() {
     }
 
     system("cls");
-    printf("\n💀 ___________Fim de jogo, %s !___________,\n___________Score final: %d___________\n", jogador.nome, jogador.score);
+    printf("\n______________Fim de jogo, %s !______________,\n________________Score final: %d________________\n", jogador.nome, jogador.score);
 
     return 0;
 }
