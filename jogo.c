@@ -1,20 +1,21 @@
+#include "raylib.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <locale.h>
 #include <string.h>
 #include <time.h>
-#include <conio.h>
 
-#define WIDTH 20
-#define HEIGHT 10
-#define MAX_HP 3
+#define WIDTH 800
+#define HEIGHT 450
+#define PLAYER_SIZE 40
 #define OBSTACLE_COUNT 5
+#define MAX_HP 3
 
 typedef struct {
     char nome[50];
     int score;
     int hp;
-} player;
+    int x;
+} Player;
 
 typedef struct {
     int x, y;
@@ -23,150 +24,166 @@ typedef struct {
 typedef struct RankingNode {
     char nome[50];
     int score;
-    
     struct RankingNode* next;
 } RankingNode;
 
 Obstacle obstacles[OBSTACLE_COUNT];
-int playerX = WIDTH / 4;
 RankingNode* rankingHead = NULL;
 
-void initObstacles() {
+Texture2D texPlayer, texObstacle;
+
+void InitObstacles() {
     for (int i = 0; i < OBSTACLE_COUNT; i++) {
-        obstacles[i].x = rand() % WIDTH;
-        obstacles[i].y = -(rand() % HEIGHT);
+        obstacles[i].x = GetRandomValue(0, WIDTH - PLAYER_SIZE);
+        obstacles[i].y = -GetRandomValue(0, HEIGHT);
     }
 }
 
-void draw(player jogador) {
-    system("cls");
-    printf("Jogador: %s\tScore: %d\tHP: ", jogador.nome, jogador.score);
-    for (int i = 0; i < MAX_HP; i++) {
-        if (i < jogador.hp) printf("[ # ]");
-        else printf("[ ]");
-    }
-    printf("\n");
-    for (int y = 0; y < HEIGHT; y++) {
-        for (int x = 0; x < WIDTH; x++) {
-            int drawn = 0;
-            for (int i = 0; i < OBSTACLE_COUNT; i++) {
-                if (obstacles[i].x == x && obstacles[i].y == y) {
-                    printf("X");
-                    drawn = 1;
-                    break;
-                }
-            }
-            if (!drawn && y == HEIGHT - 1 && x == playerX) {
-                printf("A");
-                drawn = 1;
-            }
-            if (!drawn) printf(" ");
-        }
-        printf("\n");
-    }
-}
-
-void updateObstacles(player* jogador) {
+void UpdateObstacles(Player *player) {
     for (int i = 0; i < OBSTACLE_COUNT; i++) {
-        obstacles[i].y++;
-        if (obstacles[i].y == HEIGHT - 1 && obstacles[i].x == playerX) {
-            jogador->hp--;
-            obstacles[i].y = 0;
-            obstacles[i].x = rand() % WIDTH;
+        obstacles[i].y += 5;
+
+        if (obstacles[i].y >= HEIGHT - PLAYER_SIZE &&
+            obstacles[i].x + PLAYER_SIZE > player->x &&
+            obstacles[i].x < player->x + PLAYER_SIZE) {
+            player->hp--;
+            obstacles[i].y = -GetRandomValue(0, HEIGHT);
+            obstacles[i].x = GetRandomValue(0, WIDTH - PLAYER_SIZE);
         }
-        if (obstacles[i].y >= HEIGHT) {
-            obstacles[i].y = 0;
-            obstacles[i].x = rand() % WIDTH;
-            jogador->score++;
+
+        if (obstacles[i].y > HEIGHT) {
+            player->score++;
+            obstacles[i].y = -GetRandomValue(0, HEIGHT);
+            obstacles[i].x = GetRandomValue(0, WIDTH - PLAYER_SIZE);
         }
     }
 }
 
-void inserirRanking(char* nome, int score) {
-    RankingNode* novo = (RankingNode*)malloc(sizeof(RankingNode));
+void InserirRanking(char* nome, int score) {
+    RankingNode* novo = malloc(sizeof(RankingNode));
     strcpy(novo->nome, nome);
     novo->score = score;
     novo->next = NULL;
+
     if (rankingHead == NULL || score > rankingHead->score) {
         novo->next = rankingHead;
         rankingHead = novo;
     } else {
         RankingNode* atual = rankingHead;
-        while (atual->next != NULL && atual->next->score >= score) {
+        while (atual->next && atual->next->score >= score)
             atual = atual->next;
-        }
         novo->next = atual->next;
         atual->next = novo;
     }
 }
 
-void salvarRanking() {
-    FILE* arquivo = fopen("ranking.txt", "w");
-    if (arquivo == NULL) return;
-    RankingNode* atual = rankingHead;
-    while (atual != NULL) {
-        fprintf(arquivo, "%s %d\n", atual->nome, atual->score);
-        atual = atual->next;
+void SalvarRanking() {
+    FILE* f = fopen("ranking.txt", "w");
+    if (!f) return;
+    RankingNode* node = rankingHead;
+    while (node) {
+        fprintf(f, "%s %d\n", node->nome, node->score);
+        node = node->next;
     }
-    fclose(arquivo);
+    fclose(f);
 }
 
-void carregarRanking() {
-    FILE* arquivo = fopen("ranking.txt", "r");
-    if (arquivo == NULL) return;
+void CarregarRanking() {
+    FILE* f = fopen("ranking.txt", "r");
+    if (!f) return;
     char nome[50];
     int score;
-    while (fscanf(arquivo, "%s %d", nome, &score) != EOF) {
-        inserirRanking(nome, score);
-    }
-    fclose(arquivo);
+    while (fscanf(f, "%s %d", nome, &score) != EOF)
+        InserirRanking(nome, score);
+    fclose(f);
 }
 
-void exibirRanking() {
-    printf("\n===== Ranking de Jogadores =====\n");
-    RankingNode* atual = rankingHead;
-    int posicao = 1;
-    while (atual != NULL) {
-        printf("%dº - %s: %d pontos\n", posicao, atual->nome, atual->score);
-        atual = atual->next;
-        posicao++;
+void MostrarRanking() {
+    ClearBackground(RAYWHITE);
+    DrawText("=== Ranking ===", 280, 50, 30, DARKGRAY);
+    int y = 100, pos = 1;
+    RankingNode* node = rankingHead;
+    while (node) {
+        char buffer[100];
+        snprintf(buffer, sizeof(buffer), "%dº - %s: %d", pos++, node->nome, node->score);
+        DrawText(buffer, 200, y, 20, BLACK);
+        y += 30;
+        node = node->next;
     }
 }
 
 int main() {
-    setlocale(LC_ALL, "");
-    system("chcp 65001 > nul");
-    player jogador;
-    carregarRanking();
-    printf("Escolha seu Nickname: ");
-    fgets(jogador.nome, sizeof(jogador.nome), stdin);
-    jogador.nome[strcspn(jogador.nome, "\n")] = '\0';
+    InitWindow(WIDTH, HEIGHT, "Jogo de Esquiva com Ranking");
+    SetTargetFPS(60);
+    InitAudioDevice();
+    srand(time(NULL));
+
+    texPlayer = LoadTexture("assets/player.png");
+    texObstacle = LoadTexture("assets/obstacle.png");
+
+    Player jogador = {0};
     jogador.hp = MAX_HP;
     jogador.score = 0;
-    srand(time(NULL));
-    initObstacles();
-    printf("________Sua aventura já vai começar!________\n");
-    system("pause");
-    int running = 1;
-    while (running) {
-        draw(jogador);
-        if (_kbhit()) {
-            char key = _getch();
-            if (key == 75 && playerX > 0) playerX--;
-            if (key == 77 && playerX < WIDTH - 1) playerX++;
+    jogador.x = WIDTH / 2 - PLAYER_SIZE / 2;
+
+    CarregarRanking();
+
+    char nome[50];
+    printf("Digite seu nickname: ");
+    fgets(nome, sizeof(nome), stdin);
+    nome[strcspn(nome, "\n")] = 0;
+    strcpy(jogador.nome, nome);
+
+    InitObstacles();
+
+    int gameOver = 0;
+
+    while (!WindowShouldClose()) {
+        if (!gameOver) {
+            // Lógica
+            if (IsKeyDown(KEY_LEFT) && jogador.x > 0)
+                jogador.x -= 6;
+            if (IsKeyDown(KEY_RIGHT) && jogador.x < WIDTH - PLAYER_SIZE)
+                jogador.x += 6;
+
+            UpdateObstacles(&jogador);
+
+            if (jogador.hp <= 0) {
+                gameOver = 1;
+                InserirRanking(jogador.nome, jogador.score);
+                SalvarRanking();
+            }
         }
-        updateObstacles(&jogador);
-        if (jogador.hp <= 0) {
-            running = 0;
+
+        // Desenho
+        BeginDrawing();
+        ClearBackground(RAYWHITE);
+
+        if (!gameOver) {
+            DrawText(TextFormat("Jogador: %s", jogador.nome), 10, 10, 20, BLACK);
+            DrawText(TextFormat("Score: %d", jogador.score), 10, 35, 20, DARKGREEN);
+            DrawText("HP: ", 10, 60, 20, RED);
+            for (int i = 0; i < MAX_HP; i++)
+                DrawRectangle(60 + i * 25, 60, 20, 20, (i < jogador.hp) ? RED : LIGHTGRAY);
+
+            // Player
+            DrawTexture(texPlayer, jogador.x, HEIGHT - PLAYER_SIZE, WHITE);
+
+            // Obstacles
+            for (int i = 0; i < OBSTACLE_COUNT; i++)
+                DrawTexture(texObstacle, obstacles[i].x, obstacles[i].y, WHITE);
+        } else {
+            DrawText("Game Over!", 300, 100, 40, RED);
+            DrawText(TextFormat("Score: %d", jogador.score), 330, 160, 25, BLACK);
+            MostrarRanking();
         }
-        _sleep(1)
-        ;
+
+        EndDrawing();
     }
-    system("cls");
-    printf("\n______________Fim de jogo, %s!______________\n", jogador.nome);
-    printf("________________Score final: %d________________\n", jogador.score);
-    inserirRanking(jogador.nome, jogador.score);
-    salvarRanking();
-    exibirRanking();
+
+    UnloadTexture(texPlayer);
+    UnloadTexture(texObstacle);
+    CloseAudioDevice();
+    CloseWindow();
     return 0;
 }
