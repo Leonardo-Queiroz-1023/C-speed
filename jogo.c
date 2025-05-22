@@ -17,6 +17,7 @@ typedef struct {
     int score;
     int hp;
     int x;
+    double tempo; // <-- novo campo
 } Player;
 
 typedef struct {
@@ -26,13 +27,14 @@ typedef struct {
 typedef struct RankingNode {
     char nome[50];
     int score;
+    double tempo; // <-- novo campo
     struct RankingNode* next;
 } RankingNode;
 
 Obstacle obstacles[OBSTACLE_COUNT];
 RankingNode* rankingHead = NULL;
 
-Texture2D texPlayer, texObstacle;
+Texture2D texPlayer, texObstacle, texArvore;
 
 void InitObstacles() {
     int pistaLargura = WIDTH / 2;
@@ -89,10 +91,11 @@ void DrawObstacle(Obstacle obst, Texture2D tex) {
     DrawTexturePro(tex, sourceRec, destRec, origin, 0.0f, WHITE);
 }
 
-void InserirRanking(char* nome, int score) {
+void InserirRanking(char* nome, int score, double tempo) {
     RankingNode* novo = malloc(sizeof(RankingNode));
     strcpy(novo->nome, nome);
     novo->score = score;
+    novo->tempo = tempo;
     novo->next = NULL;
 
     if (rankingHead == NULL || score > rankingHead->score) {
@@ -112,7 +115,7 @@ void SalvarRanking() {
     if (!f) return;
     RankingNode* node = rankingHead;
     while (node) {
-        fprintf(f, "%s %d\n", node->nome, node->score);
+        fprintf(f, "%s %d %.2f\n", node->nome, node->score, node->tempo);
         node = node->next;
     }
     fclose(f);
@@ -123,17 +126,20 @@ void CarregarRanking() {
     if (!f) return;
     char nome[50];
     int score;
-    while (fscanf(f, "%s %d", nome, &score) != EOF)
-        InserirRanking(nome, score);
+    double tempo;
+    while (fscanf(f, "%s %d %lf", nome, &score, &tempo) != EOF)
+        InserirRanking(nome, score, tempo);
     fclose(f);
 }
 
 void MostrarRanking() {
-    int y = 200; // Posição inicial no eixo Y
+    int y = 200;
     RankingNode* node = rankingHead;
     DrawText("Ranking:", 10, y - 30, 25, DARKBLUE);
     while (node) {
-        DrawText(TextFormat("%s - %d", node->nome, node->score), 10, y, 20, BLACK);
+        int min = (int)(node->tempo / 60);
+        int seg = (int)node->tempo % 60;
+        DrawText(TextFormat("%s - %d pts - %02d:%02d", node->nome, node->score, min, seg), 10, y, 20, BLACK);
         y += 30;
         node = node->next;
     }
@@ -153,6 +159,10 @@ int main() {
     if (texObstacle.id == 0) {
         printf("Erro ao carregar obstaculo.png\n");
     }
+    texArvore = LoadTexture("assets/arvore.png");
+    if (texArvore.id == 0) {
+        printf("Erro ao carregar arvore.png\n");
+    }
 
     Player jogador = {0};
     jogador.hp = MAX_HP;
@@ -169,8 +179,26 @@ int main() {
 
     InitObstacles();
 
+    // Tela de menu inicial
+    int naTelaMenu = 1;
+    while (!WindowShouldClose() && naTelaMenu) {
+        BeginDrawing();
+        ClearBackground(DARKGREEN);
+
+        DrawText("JOGO DE ESQUIVA", WIDTH / 2 - 160, HEIGHT / 2 - 100, 40, WHITE);
+        DrawText("Pressione ENTER para jogar", WIDTH / 2 - 180, HEIGHT / 2, 25, YELLOW);
+        DrawText("Setas <- e -> para mover", WIDTH / 2 - 160, HEIGHT / 2 + 40, 20, LIGHTGRAY);
+
+        EndDrawing();
+
+        if (IsKeyPressed(KEY_ENTER)) {
+            naTelaMenu = 0;
+        }
+    }
+
     // Cronômetro de 3 segundos antes de iniciar o jogo
     double startTime = GetTime();
+    double tempoInicio = GetTime();
     int countdown = 3;
     while (countdown > 0 && !WindowShouldClose()) {
         BeginDrawing();
@@ -194,9 +222,13 @@ int main() {
         int pistaLargura = WIDTH / 2;
         int pistaInicioX = (WIDTH - pistaLargura) / 2;
         int pistaFimX = pistaInicioX + pistaLargura;
+
+        // Primeiro desenhe a pista e as áreas verdes
         DrawRectangle(pistaInicioX, 0, pistaLargura, HEIGHT, DARKGRAY);
         DrawRectangle(0, 0, pistaInicioX, HEIGHT, DARKGREEN);
         DrawRectangle(pistaFimX, 0, (WIDTH - pistaLargura) / 2, HEIGHT, DARKGREEN);
+
+        // Depois desenhe os pontilhados
         for (int y = 0; y < HEIGHT; y += 40) {
             DrawRectangle(WIDTH/2 - 5, y, 10, 20, YELLOW);
         }
@@ -211,9 +243,11 @@ int main() {
 
             UpdateObstacles(&jogador);
 
+            jogador.tempo = GetTime() - tempoInicio;
+
             if (jogador.hp <= 0) {
                 gameOver = 1;
-                InserirRanking(jogador.nome, jogador.score);
+                InserirRanking(jogador.nome, jogador.score, jogador.tempo);
                 SalvarRanking();
             }
 
@@ -223,6 +257,11 @@ int main() {
             DrawText("HP: ", 10, 60, 20, RED);
             for (int i = 0; i < MAX_HP; i++)
                 DrawRectangle(60 + i * 25, 60, 20, 20, (i < jogador.hp) ? RED : LIGHTGRAY);
+
+            double tempoAtual = GetTime() - tempoInicio;
+            int minutos = (int)(tempoAtual / 60);
+            int segundos = (int)tempoAtual % 60;
+            DrawText(TextFormat("Tempo: %02d:%02d", minutos, segundos), 10, 85, 20, BLACK);
 
             // Player com textura
             Rectangle src = {0, 0, (float)texPlayer.width, (float)texPlayer.height};
@@ -245,7 +284,8 @@ int main() {
 
     UnloadTexture(texPlayer);
     UnloadTexture(texObstacle);
+    UnloadTexture(texArvore);
     CloseAudioDevice();
     CloseWindow();
-    return 0;
+    return 0;
 }
