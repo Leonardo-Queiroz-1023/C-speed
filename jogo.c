@@ -6,9 +6,11 @@
 
 #define WIDTH 800
 #define HEIGHT 450
-#define PLAYER_SIZE 40
-#define OBSTACLE_COUNT 5
+#define PLAYER_SIZE 25
+#define OBSTACLE_COUNT 8
 #define MAX_HP 3
+#define OBSTACLE_SIZE 30
+
 
 typedef struct {
     char nome[50];
@@ -33,30 +35,58 @@ RankingNode* rankingHead = NULL;
 Texture2D texPlayer, texObstacle;
 
 void InitObstacles() {
+    int pistaLargura = WIDTH / 2;
+    int pistaInicioX = (WIDTH - pistaLargura) / 2;
     for (int i = 0; i < OBSTACLE_COUNT; i++) {
-        obstacles[i].x = GetRandomValue(0, WIDTH - PLAYER_SIZE);
-        obstacles[i].y = -GetRandomValue(0, HEIGHT);
+        int sobrepoe;
+        do {
+            sobrepoe = 0;
+            obstacles[i].x = GetRandomValue(pistaInicioX, pistaInicioX + pistaLargura - OBSTACLE_SIZE);
+            obstacles[i].y = GetRandomValue(0, HEIGHT / 2);
+            // Verifica se sobrepõe algum obstáculo já posicionado
+            for (int j = 0; j < i; j++) {
+                if (abs(obstacles[i].x - obstacles[j].x) < OBSTACLE_SIZE &&
+                    abs(obstacles[i].y - obstacles[j].y) < OBSTACLE_SIZE) {
+                    sobrepoe = 1;
+                    break;
+                }
+            }
+        } while (sobrepoe);
     }
 }
 
 void UpdateObstacles(Player *player) {
+    int pistaLargura = WIDTH / 2;
+    int pistaInicioX = (WIDTH - pistaLargura) / 2;
     for (int i = 0; i < OBSTACLE_COUNT; i++) {
-        obstacles[i].y += 5;
+        obstacles[i].y += 3; // velocidade de descida
 
-        if (obstacles[i].y >= HEIGHT - PLAYER_SIZE &&
-            obstacles[i].x + PLAYER_SIZE > player->x &&
-            obstacles[i].x < player->x + PLAYER_SIZE) {
+        // Detecção de colisão
+        int playerY = HEIGHT - PLAYER_SIZE;
+        if (obstacles[i].x < player->x + PLAYER_SIZE &&
+            obstacles[i].x + OBSTACLE_SIZE > player->x &&
+            obstacles[i].y < playerY + PLAYER_SIZE &&
+            obstacles[i].y + OBSTACLE_SIZE > playerY) {
+            // Colidiu!
             player->hp--;
-            obstacles[i].y = -GetRandomValue(0, HEIGHT);
-            obstacles[i].x = GetRandomValue(0, WIDTH - PLAYER_SIZE);
+            // Reposiciona o obstáculo no topo em posição aleatória dentro da pista
+            obstacles[i].y = 0;
+            obstacles[i].x = GetRandomValue(pistaInicioX, pistaInicioX + pistaLargura - OBSTACLE_SIZE);
         }
 
         if (obstacles[i].y > HEIGHT) {
-            player->score++;
-            obstacles[i].y = -GetRandomValue(0, HEIGHT);
-            obstacles[i].x = GetRandomValue(0, WIDTH - PLAYER_SIZE);
+            obstacles[i].y = 0;
+            obstacles[i].x = GetRandomValue(pistaInicioX, pistaInicioX + pistaLargura - OBSTACLE_SIZE);
+            player->score++; // aumenta o score ao desviar
         }
     }
+}
+
+void DrawObstacle(Obstacle obst, Texture2D tex) {
+    Rectangle sourceRec = { 0.0f, 0.0f, (float)tex.width, (float)tex.height };
+    Rectangle destRec = { (float)obst.x, (float)obst.y, OBSTACLE_SIZE, OBSTACLE_SIZE };
+    Vector2 origin = { 0.0f, 0.0f };
+    DrawTexturePro(tex, sourceRec, destRec, origin, 0.0f, WHITE);
 }
 
 void InserirRanking(char* nome, int score) {
@@ -99,14 +129,11 @@ void CarregarRanking() {
 }
 
 void MostrarRanking() {
-    ClearBackground(RAYWHITE);
-    DrawText("=== Ranking ===", 280, 50, 30, DARKGRAY);
-    int y = 100, pos = 1;
+    int y = 200; // Posição inicial no eixo Y
     RankingNode* node = rankingHead;
+    DrawText("Ranking:", 10, y - 30, 25, DARKBLUE);
     while (node) {
-        char buffer[100];
-        snprintf(buffer, sizeof(buffer), "%dº - %s: %d", pos++, node->nome, node->score);
-        DrawText(buffer, 200, y, 20, BLACK);
+        DrawText(TextFormat("%s - %d", node->nome, node->score), 10, y, 20, BLACK);
         y += 30;
         node = node->next;
     }
@@ -119,12 +146,18 @@ int main() {
     srand(time(NULL));
 
     texPlayer = LoadTexture("assets/player.png");
-    texObstacle = LoadTexture("assets/obstacle.png");
+    if (texPlayer.id == 0) {
+        printf("Erro ao carregar player.png\n");
+    }
+    texObstacle = LoadTexture("assets/obstaculo.png");
+    if (texObstacle.id == 0) {
+        printf("Erro ao carregar obstaculo.png\n");
+    }
 
     Player jogador = {0};
     jogador.hp = MAX_HP;
     jogador.score = 0;
-    jogador.x = WIDTH / 2 - PLAYER_SIZE / 2;
+    jogador.x = WIDTH / 2 - PLAYER_SIZE / 2; // Centraliza horizontalmente
 
     CarregarRanking();
 
@@ -136,14 +169,44 @@ int main() {
 
     InitObstacles();
 
+    // Cronômetro de 3 segundos antes de iniciar o jogo
+    double startTime = GetTime();
+    int countdown = 3;
+    while (countdown > 0 && !WindowShouldClose()) {
+        BeginDrawing();
+        ClearBackground(RAYWHITE);
+        DrawText(TextFormat("O jogo começa em: %d", countdown), WIDTH/2 - 120, HEIGHT/2 - 20, 30, RED);
+        EndDrawing();
+
+        if ((int)(GetTime() - startTime) >= 1) {
+            countdown--;
+            startTime = GetTime();
+        }
+    }
+
     int gameOver = 0;
 
     while (!WindowShouldClose()) {
+        BeginDrawing();
+        ClearBackground(RAYWHITE);
+
+        // --- CENÁRIO ---
+        int pistaLargura = WIDTH / 2;
+        int pistaInicioX = (WIDTH - pistaLargura) / 2;
+        int pistaFimX = pistaInicioX + pistaLargura;
+        DrawRectangle(pistaInicioX, 0, pistaLargura, HEIGHT, DARKGRAY);
+        DrawRectangle(0, 0, pistaInicioX, HEIGHT, DARKGREEN);
+        DrawRectangle(pistaFimX, 0, (WIDTH - pistaLargura) / 2, HEIGHT, DARKGREEN);
+        for (int y = 0; y < HEIGHT; y += 40) {
+            DrawRectangle(WIDTH/2 - 5, y, 10, 20, YELLOW);
+        }
+
+        // --- RESTANTE DO JOGO ---
         if (!gameOver) {
             // Lógica
-            if (IsKeyDown(KEY_LEFT) && jogador.x > 0)
+            if (IsKeyDown(KEY_LEFT) && jogador.x > pistaInicioX)
                 jogador.x -= 6;
-            if (IsKeyDown(KEY_RIGHT) && jogador.x < WIDTH - PLAYER_SIZE)
+            if (IsKeyDown(KEY_RIGHT) && jogador.x < pistaFimX - PLAYER_SIZE)
                 jogador.x += 6;
 
             UpdateObstacles(&jogador);
@@ -153,25 +216,24 @@ int main() {
                 InserirRanking(jogador.nome, jogador.score);
                 SalvarRanking();
             }
-        }
 
-        // Desenho
-        BeginDrawing();
-        ClearBackground(RAYWHITE);
-
-        if (!gameOver) {
+            // Desenho do HUD, player e obstáculos
             DrawText(TextFormat("Jogador: %s", jogador.nome), 10, 10, 20, BLACK);
             DrawText(TextFormat("Score: %d", jogador.score), 10, 35, 20, DARKGREEN);
             DrawText("HP: ", 10, 60, 20, RED);
             for (int i = 0; i < MAX_HP; i++)
                 DrawRectangle(60 + i * 25, 60, 20, 20, (i < jogador.hp) ? RED : LIGHTGRAY);
 
-            // Player
-            DrawTexture(texPlayer, jogador.x, HEIGHT - PLAYER_SIZE, WHITE);
+            // Player com textura
+            Rectangle src = {0, 0, (float)texPlayer.width, (float)texPlayer.height};
+            Rectangle dest = {(float)jogador.x, (float)(HEIGHT - PLAYER_SIZE), PLAYER_SIZE, PLAYER_SIZE};
+            Vector2 origin = {0, 0};
+            DrawTexturePro(texPlayer, src, dest, origin, 0, WHITE);
 
-            // Obstacles
-            for (int i = 0; i < OBSTACLE_COUNT; i++)
-                DrawTexture(texObstacle, obstacles[i].x, obstacles[i].y, WHITE);
+            // Obstáculos com textura
+            for (int i = 0; i < OBSTACLE_COUNT; i++) {
+                DrawObstacle(obstacles[i], texObstacle);
+            }
         } else {
             DrawText("Game Over!", 300, 100, 40, RED);
             DrawText(TextFormat("Score: %d", jogador.score), 330, 160, 25, BLACK);
