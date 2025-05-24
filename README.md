@@ -23,6 +23,10 @@ Collecting workspace informationClaro! Aqui está um passo a passo para rodar o 
      gcc jogo.c -o jogo -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
      ```
      > No Windows, pode ser necessário ajustar as bibliotecas, por exemplo:
+
+https://github.com/user-attachments/assets/9bf8d1ea-0daa-4eb4-8b01-c61814bbfed5
+
+
      ```sh
      gcc jogo.c -o jogo.exe -lraylib -lopengl32 -lgdi32 -lwinmm
      ```
