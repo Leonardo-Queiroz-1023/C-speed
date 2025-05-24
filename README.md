@@ -24,7 +24,7 @@ Collecting workspace informationClaro! Aqui está um passo a passo para rodar o 
      ```
      > No Windows, pode ser necessário ajustar as bibliotecas, por exemplo:
 
-https://github.com/user-attachments/assets/9bf8d1ea-0daa-4eb4-8b01-c61814bbfed5
+
 
 
      ```sh
@@ -80,3 +80,5 @@ Collecting workspace informationAqui está o passo a passo para rodar o jogo em 
      ```
 
 Veja o código principal em jogo.c.
+video do jogo 
+https://github.com/user-attachments/assets/9bf8d1ea-0daa-4eb4-8b01-c61814bbfed5
